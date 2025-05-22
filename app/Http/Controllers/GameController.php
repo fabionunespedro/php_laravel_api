@@ -1,25 +1,24 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use Illuminate\Http\Request;
 use App\Models\Game;
 
 class GameController extends Controller
 {
+
     public function create(Request $request)
     {
-        $games = Game::all();
+        $validated = $request->validate([
+            'name' => 'required|string|unique:games,name',
+            'category' => 'required|string',
+            'year' => 'required|integer',
+        ]);
 
-        $newGame = new Game(
-            $request->input('name'),
-            $request->input('category'),
-            (int) $request->input('year')
-        );
+        $game = Game::create($validated);
 
-        $games[] = $newGame->toArray();
-        Game::saveAll($games);
-
-        return response()->json(['message' => 'Game criado com sucesso!', 'game' => $newGame->toArray()], 201);
+        return response()->json(['message' => 'Game criado com sucesso!', 'game' => $game], 201);
     }
 
     public function listAll()
@@ -29,50 +28,44 @@ class GameController extends Controller
 
     public function getByName(string $name)
     {
-        $games = Game::all();
+        $game = Game::whereRaw('LOWER(name) = ?', [strtolower($name)])->first();
 
-        foreach ($games as $game) {
-            if (strtolower($game['name']) === strtolower($name)) {
-                return response()->json($game);
-            }
+        if (!$game) {
+            return response()->json(['error' => 'Game não encontrado'], 404);
         }
 
-        return response()->json(['error' => 'Game não encontrado'], 404);
+        return response()->json($game);
     }
 
     public function update(Request $request, string $name)
     {
-        $games = Game::all();
-        $found = false;
+        $game = Game::where('name', $name)->first();
 
-        foreach ($games as &$game) {
-            if ($game['name'] === $name) {
-                $game['name'] = $request->input('name');
-                $game['category'] = $request->input('category');
-                $game['year'] = (int) $request->input('year');
-                $found = true;
-                break;
-            }
+        if (!$game) {
+            return response()->json(['error' => 'Game não encontrado'], 404);
         }
 
-        if ($found) {
-            Game::saveAll($games);
-            return response()->json(['message' => 'Game atualizado com sucesso', 'games' => $games]);
-        }
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'category' => 'required|string',
+            'year' => 'required|integer',
+        ]);
 
-        return response()->json(['error' => 'Game não encontrado'], 404);
+        $game->update($validated);
+
+        return response()->json(['message' => 'Game atualizado com sucesso', 'game' => $game]);
     }
 
     public function delete(string $name)
     {
-        $games = Game::all();
-        $newGames = array_filter($games, fn($game) => $game['name'] !== $name);
+        $game = Game::where('name', $name)->first();
 
-        if (count($games) === count($newGames)) {
+        if (!$game) {
             return response()->json(['error' => 'Game não encontrado'], 404);
         }
 
-        Game::saveAll(array_values($newGames));
+        $game->delete();
+
         return response()->json(['message' => 'Game removido com sucesso']);
     }
 }
